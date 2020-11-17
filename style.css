@@ -1,0 +1,23 @@
+nav h1 {
+  font-size: 3.6rem;
+  line-height: 1.25;
+  display: inline-block;
+}
+nav img {
+  vertical-align: text-bottom;
+}
+nav ul {
+  list-style: none;
+}
+nav button {
+  margin: 2px;
+}
+#subscriptions {
+  overflow-x: scroll;
+}
+#subscriptions img {
+  max-width: 32px;
+  max-height: 32px;
+  width: 32px;
+  height: 32px;
+}

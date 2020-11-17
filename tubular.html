@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>TUBULAR-9000</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimal-ui"/>
+    <meta name="application-name" content="TUBULAR-9000"/>
+    <link rel="apple-touch-icon-precomposed" sizes="144x144" href="apple-touch-icon-144x144.png" />
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="apple-touch-icon-152x152.png" />
+    <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
+    <meta name="theme-color" content="#f4f5f6"/>
+    <meta name="description" content="An ad-free, tracker-free and truly serverless video feed reader">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="tubular-9000.js"></script>
+  </head>
+  <body>
+    <main id="main" class="wrapper">
+      <nav class="navigation" id="navigation">
+        <section class="container">
+          <img src="./favicon-32x32.png" alt="TUBULAR-9000"/>&nbsp;<h1 class="title" class="float-left">TUBULAR-9000</h1>
+          <ul class="navigation-list float-right">
+            <li class="navigation-item"><button id="refresh-button">Refresh</button></li>
+          </ul>
+        </section>
+      </nav>
+      <div class="container">
+        <div class="row" id="subscriptions"></div>
+        <div class="row" id="player"></div>
+      </div>
+    </main>
+    <div style="visibility: hidden;" id="templates">
+      <div id="subscription-template" class="column">
+        <img data-src="${icon}" alt="${title}" title="${title}"/>
+      </div>
+    </div>
+  </body>
+</html>
