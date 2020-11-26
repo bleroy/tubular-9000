@@ -1,17 +1,90 @@
 // TUBULAR-9000 - an ad-free, tracker-free and almost serverless video feed reader
 // (c) 2020 Bertrand Le Roy
 
+// Uncomment during development to start from an empty local cache:
 clearLocalStore();
 
 // Settings
 
 const settings = {
+  // URL of the subscriptions OPML file:
   subscriptions: "subscriptions"
 };
 
 // Local data
 
 let subscriptions = [];
+let selectedSubscription = "*";
+
+// Class definitions
+
+/**
+ * A subscription
+ */
+class Subscription {
+  constructor(options) {
+    this.title = options.title;
+    this.url = options.url;
+    this.icon = options.icon || "./favicon-32x32.png";
+    this.detailsFetched = !!options.detailsFetched;
+    this.postings = [];
+    this.postingsElements = options.postingsElements || [];
+    this.hwm = new Date(0);
+  }
+
+  /**
+   * Adds a posting to the subscription
+   * @param {Posting} posting The posting to add to the subscription
+   */
+  addPosting(posting) {
+    if (!posting.id) {
+      console.error(`Can't add a posting without an id: {posting}`);
+      return;
+    }
+    const index = this.postings.findIndex(p => p.id == posting.id);
+    if (index !== -1) {
+      (this.postings[index].elements || []).forEach(el => {
+        render(posting, {usingTemplate: el.template, replacing: el.element});
+      });
+      this.postings[index] = posting;
+    }
+    else {
+      const insertIndex = this.postings.findIndex(p => posting.published > p.published);
+      if (insertIndex === -1)
+      {
+        this.postingsElements.forEach(el => render(posting, {
+          usingTemplate: el.template,
+          into: el.element
+        }));
+        this.postings.push(posting);
+      }
+      else {
+        (this.postings[insertIndex].elements || []).forEach(el => {
+          render(posting, {usingTemplate: el.template, after: el.element});
+        });
+        this.postings.splice(insertIndex, 0, posting);
+      }
+    }
+  }
+}
+
+/**
+ * A posting
+ */
+class Posting {
+  constructor(options) {
+    this.id = options.id;
+    this.title = options.title || "[untitled]";
+    this.url = options.url;
+    this.media = options.media;
+    this.thumbnail = options.thumbnail;
+    this.published = options.published;
+    this.updated = options.updated;
+    this.description = options.description || "";
+    this.starRating = options.starRating || 0;
+    this.views = options.views || 0;
+  }
+}
 
 // Network
 
@@ -144,7 +217,7 @@ function bind(template, data) {
 /**
  * Renders data using a template.
  * @param {object} data The data to render
- * @param {{ usingTemplate: Element, into: Element, replacing: Element }} options The template to use and the element to render into
+ * @param {{ usingTemplate: Element, into: Element, replacing: Element, after: Element }} options The template to use and the element to render into
  */
 function render(data, options) {
   const elements = bind(options.usingTemplate, data);
@@ -160,6 +233,9 @@ function render(data, options) {
       }
       const container = options.replacing.parentNode;
       container.replaceChild(elements[0], options.replacing);
+    }
+    else if (options.after) {
+      options.after.after(elements[0]);
     }
   }
 }
@@ -198,6 +274,9 @@ function mapModel(obj, mapping) {
 
 // Local storage
 
+/**
+ * Clears local storage, mostly during development
+ */
 function clearLocalStore() {
   localStorage.clear();
 }
@@ -229,12 +308,15 @@ async function localFetch(name, fallback) {
 
 // Application features
 
+/** Refreshes the data about a subscription
+ * @param {Subscription} sub The subscription structure
+ */
 async function refreshSubscription(sub) {
   if (sub.url.substring(0, 8) === "https://") {
     console.log(`Fetching ${sub.title} from ${sub.url}...`);
     const subDoc = await loadDocument(`feed/${sub.url.substring(8)}`);
     const subFeed = [...subDoc.querySelectorAll('feed entry')]
-      .map(entry => ({
+      .map(entry => new Posting({
         id: entry.querySelector("id").textContent,
         title: entry.querySelector("title").textContent,
         url: entry.querySelector('link[rel="alternate"]').getAttribute("href"),
@@ -258,6 +340,7 @@ async function refreshSubscription(sub) {
         starRating: parseFloat(entry.querySelector("community starRating").getAttribute("average")),
         views: parseInt(entry.querySelector("community statistics[views]").getAttribute("views"))
       }));
+    subFeed.forEach(posting => sub.addPosting(posting));
     const feedPageUrl = subDoc.querySelector('feed link[rel="alternate"]').getAttribute("href");
     const iconUrl = await getIconFromFeedPage(feedPageUrl);
     if (iconUrl) {
@@ -270,6 +353,10 @@ async function refreshSubscription(sub) {
   }
 }
 
+/**
+ * Scrapes the subscription's icon URL from its page
+ * @param {string} url The URL from which to scrape the icon URL
+ */
 async function getIconFromFeedPage(url) {
   if (url.substring(0, 8) === "https://") {
     console.log(`Fetching ${url}...`);
@@ -290,6 +377,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const subscriptionsSection = document.getElementById("subscriptions");
   const subscriptionTemplate = document.getElementById("subscription-template");
+  const postingsSection = document.getElementById("postings");
+  const postingTemplate = document.getElementById("posting-template");
 
   // Load subscriptions
   subscriptions = await localFetch(
@@ -300,14 +389,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       .firstElementChild
       .firstElementChild
       .children
-    ].map(node => ({
+    ].map(node => new Subscription({
       title: node.attributes.title.nodeValue,
       url: node.attributes.xmlUrl.nodeValue,
-      icon: "./favicon-32x32.png",
-      detailsFetched: false
+      postingsElements: [{ element: postingsSection, template: postingTemplate }]
     })));
   subscriptionsSection.innerHTML = "";
-  [subscriptions[0]].forEach(async sub => {
+  subscriptions.forEach(async sub => {
     render(sub, {
       into: subscriptionsSection,
       usingTemplate: subscriptionTemplate
@@ -317,6 +405,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Wire refresh button
   document.getElementById("refresh-button").addEventListener("click", () => {
-    subscriptions.forEach(refreshSubscription);
+    subscriptions.forEach(sub => refreshSubscription(sub));
   });
 });

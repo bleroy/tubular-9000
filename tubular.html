@@ -29,12 +29,16 @@
       </nav>
       <div class="container">
         <div class="row" id="subscriptions"></div>
+        <div class="row" id="postings"></div>
         <div class="row" id="player"></div>
       </div>
     </main>
     <div style="visibility: hidden;" id="templates">
       <div id="subscription-template" class="column">
         <img data-src="${icon}" alt="${title}" title="${title}"/>
+      </div>
+      <div id="posting-template">
+        <img data-src="${thumbnail.url}" alt="${title}" title="${title}" width="${thumbnail.width}" height="${thumbnail.height}"/>
       </div>
     </div>
   </body>
