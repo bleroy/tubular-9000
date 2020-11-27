@@ -35,10 +35,12 @@
     </main>
     <div style="visibility: hidden;" id="templates">
       <div id="subscription-template" class="column">
-        <img data-src="${icon}" alt="${title}" title="${title}"/>
+        <img data-src="${icon}" alt="${title}" title="${title}" class="subscription-icon"/>
       </div>
-      <div id="posting-template">
-        <img data-src="${thumbnail.url}" alt="${title}" title="${title}" width="${thumbnail.width}" height="${thumbnail.height}"/>
+      <div id="posting-template" class="column">
+        <img data-src="${thumbnail.url}" alt="${title}" title="${title}" class="thumbnail"/>
+        <div><h4>${title}</h4></div>
+        <div>${new Intl.DateTimeFormat().format(published)}</div>
       </div>
     </div>
   </body>
