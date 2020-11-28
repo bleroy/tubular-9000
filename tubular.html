@@ -34,13 +34,13 @@
       </div>
     </main>
     <div style="visibility: hidden;" id="templates">
-      <div id="subscription-template" class="column">
+      <div id="subscription-template" class="column subscription">
         <img data-src="${icon}" alt="${title}" title="${title}" class="subscription-icon"/>
       </div>
-      <div id="posting-template" class="column">
+      <div id="posting-template" class="column column-16 posting">
         <img data-src="${thumbnail.url}" alt="${title}" title="${title}" class="thumbnail"/>
-        <div><h4>${title}</h4></div>
-        <div>${new Intl.DateTimeFormat().format(published)}</div>
+        <div><h2 class="title" title="${title}">${title}</h2></div>
+        <div class="date">${new Intl.DateTimeFormat().format(published)}</div>
       </div>
     </div>
   </body>
