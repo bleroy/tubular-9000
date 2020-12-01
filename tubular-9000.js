@@ -75,36 +75,40 @@ class MetaSubscription extends Subscription {
       console.error(`Can't add a posting without an id: {posting}`);
       return;
     }
-    const index = this.postings.findIndex(p => p.id === posting.id);
+    const index = this.postings.findIndex(p => p.posting.id === posting.id);
+    const elements = [];
     if (index !== -1) {
-      (this.postings[index].elements || []).forEach(el => {
-        render(posting, {
+      this.postingsElements.forEach((el, i) => {
+        elements[i] = render(posting, {
           usingTemplate: el.template,
-          replacing: el.element
+          replacing: this.postings[index].elements[i][0]
         });
       });
-      this.postings[index] = posting;
+      // console.log(`Replacing ${posting.title} found at index ${index}.`);
+      this.postings[index] = { posting, elements };
     }
     else {
-      const insertIndex = this.postings.findIndex(p => posting.published > p.published);
-      if (insertIndex === -1)
+      const insertIndex = this.postings.findIndex(p => posting.published < p.posting.published);
+      if (insertIndex !== -1)
       {
-        this.postingsElements.forEach(el => {
-          render(posting, {
+        this.postingsElements.forEach((el, i) => {
+          elements[i] = render(posting, {
+            usingTemplate: el.template,
+            after: this.postings[insertIndex].elements[i][0]
+          });
+        });
+        // console.log(`Inserting ${posting.title} from ${new Intl.DateTimeFormat().format(posting.published)} before ${this.postings[insertIndex].posting.title} from ${new Intl.DateTimeFormat().format(this.postings[insertIndex].posting.published)}.`);
+        this.postings.splice(insertIndex, 0, { posting, elements });
+      }
+      else {
+        this.postingsElements.forEach((el, i) => {
+          elements[i] = render(posting, {
             usingTemplate: el.template,
             atStartOf: el.element
           });
         });
-        this.postings.push(posting);
-      }
-      else {
-        (this.postings[insertIndex].elements || []).forEach(el => {
-          render(posting, {
-            usingTemplate: el.template,
-            before: el.element
-          });
-        });
-        this.postings.splice(insertIndex, 0, posting);
+        // console.log(`Appending ${posting.title} from ${new Intl.DateTimeFormat().format(posting.published)}.`);
+        this.postings.push({ posting, elements });
       }
     }
   }
@@ -267,6 +271,7 @@ function bind(template, data) {
  * Renders data using a template.
  * @param {object} data The data to render
  * @param {{ usingTemplate: Element, atEndOf: Element, atStartOf: Element, replacing: Element, after: Element, before: Element }} options The template to use and where to render it
+ * @returns {Array<Element>} The rendered element or elements
  */
 function render(data, options) {
   const elements = bind(options.usingTemplate, data);
@@ -294,6 +299,7 @@ function render(data, options) {
       options.before.before(elements[0]);
     }
   }
+  return elements;
 }
 
 /**
