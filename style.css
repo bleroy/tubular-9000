@@ -38,6 +38,11 @@ img.subscription-icon {
   width: 32px;
   height: 32px;
   border-radius: 16px;
+  margin-right: 4px;
+}
+
+.posting img.subscription-icon {
+  float: left;
 }
 
 #subscriptions .column {

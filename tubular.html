@@ -39,7 +39,7 @@
       </div>
       <div id="posting-template" class="column column-16 posting">
         <img data-src="${thumbnail.url}" alt="${title}" title="${title}" class="thumbnail"/>
-        <div><h2 class="title" title="${title}">${title}</h2></div>
+        <div><img data-src="${await getIconFromFeedPage(self.subscription)}" alt="${subscription.title}" title="${subscription.title}" class="subscription-icon"/><h2 class="title" title="${title}">${title}</h2></div>
         <div class="date">${new Intl.DateTimeFormat().format(published)}</div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 // (c) 2020 Bertrand Le Roy
 
 // Uncomment during development to start from an empty local cache:
-clearLocalStore();
+// clearLocalStore();
 
 // Settings
 
@@ -25,6 +25,7 @@ class Subscription {
   constructor(options) {
     this.title = options.title;
     this.url = options.url;
+    this.pageUrl = options.pageUrl;
     this.icon = options.icon || "./favicon-32x32.png";
     this.detailsFetched = !!options.detailsFetched;
     this.postings = [];
@@ -35,7 +36,7 @@ class Subscription {
    * Adds a posting to the subscription
    * @param {Posting} posting The posting to add to the subscription
    */
-  addPosting(posting) {
+  async addPosting(posting) {
     if (!posting.id) {
       console.error(`Can't add a posting without an id: {posting}`);
       return;
@@ -70,7 +71,7 @@ class MetaSubscription extends Subscription {
    * Adds a posting to the subscription
    * @param {Posting} posting The posting to add to the subscription
    */
-  addPosting(posting) {
+  async addPosting(posting) {
     if (!posting.id) {
       console.error(`Can't add a posting without an id: {posting}`);
       return;
@@ -78,8 +79,8 @@ class MetaSubscription extends Subscription {
     const index = this.postings.findIndex(p => p.posting.id === posting.id);
     const elements = [];
     if (index !== -1) {
-      this.postingsElements.forEach((el, i) => {
-        elements[i] = render(posting, {
+      await forEach(this.postingsElements, async (el, i) => {
+        elements[i] = await render(posting, {
           usingTemplate: el.template,
           replacing: this.postings[index].elements[i][0]
         });
@@ -91,8 +92,8 @@ class MetaSubscription extends Subscription {
       const insertIndex = this.postings.findIndex(p => posting.published < p.posting.published);
       if (insertIndex !== -1)
       {
-        this.postingsElements.forEach((el, i) => {
-          elements[i] = render(posting, {
+        await forEach(this.postingsElements, async (el, i) => {
+          elements[i] = await render(posting, {
             usingTemplate: el.template,
             after: this.postings[insertIndex].elements[i][0]
           });
@@ -101,8 +102,8 @@ class MetaSubscription extends Subscription {
         this.postings.splice(insertIndex, 0, { posting, elements });
       }
       else {
-        this.postingsElements.forEach((el, i) => {
-          elements[i] = render(posting, {
+        await forEach(this.postingsElements, async (el, i) => {
+          elements[i] = await render(posting, {
             usingTemplate: el.template,
             atStartOf: el.element
           });
@@ -133,6 +134,40 @@ class Posting {
     this.description = options.description || "";
     this.starRating = options.starRating || 0;
     this.views = options.views || 0;
+    this.subscription = options.subscription;
+  }
+}
+
+// Async helpers
+
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+
+/**
+ * Calls an async function on each element of an array
+ * @param {Array} array The array over which to enumerate
+ * @param {AsyncFunction} fun The async function to apply on each array element
+ */
+async function forEach(array, fun)
+{
+  for await (let item of array) {
+    await fun(item);
+  }
+}
+
+/**
+ * Recursively enumerates the elements of an array, flattens it and applies a mapping to each element
+ * @param {Array} array The array over which to enumerate
+ * @param {AsyncFunction} mapping The async mapping to apply to each array element
+ */
+async function* flatMap(array, mapping) {
+  for await (let item of array) {
+    if (isArray(item)) {
+      for await(let nested of flatMap(item)) {
+        yield await mapping(nested);
+      }
+    } else {
+      yield await mapping(item);
+    }
   }
 }
 
@@ -163,7 +198,7 @@ async function loadDocument(url, mimeType, subscription) {
   return doc;
 }
 
-// Templating
+// Template rendering
 
 const interpolationCache = {};
 
@@ -172,14 +207,15 @@ const interpolationCache = {};
  * @param {string} format The format string in the string interpolation format
  * @param {object} params The dictionary of available data to use when interpolating
  */
-function interpolate(format, params) {
+async function interpolate(format, params) {
   const names = Object.keys(params);
   const values = Object.values(params);
   const key = `${format}(${names.join(",")})`;
   if (interpolationCache[key]) {
-    return interpolationCache[key](...values);
+    return await interpolationCache[key](...values);
   }
-  return (interpolationCache[key] = new Function(...names, `return \`${format}\`;`))(...values);
+  // console.log(`interpolating: \"${`return \`${format}\`;`}\"`);
+  return await (interpolationCache[key] = new AsyncFunction(...names, `return \`${format}\`;`))(...values);
 }
 
 /**
@@ -188,14 +224,15 @@ function interpolate(format, params) {
  * @param {object} params The dictionary of available data to evaluate against
  * @return {*} the result of evaluating the expression
  */
-function evaluate(expression, params) {
+async function evaluate(expression, params) {
   const names = Object.keys(params);
   const values = Object.values(params);
   const key = `expr:${expression}(${names})`;
   if (interpolationCache[key]) {
-    return interpolationCache[key](...values);
+    return await interpolationCache[key](...values);
   }
-  return (interpolationCache[key] = new Function(...names, `return ${expression};`))(...values);
+  // console.log(`evaluating: \"${`return ${expression};`}\"`);
+  return await (interpolationCache[key] = new AsyncFunction(...names, `return ${expression};`))(...values);
 }
 
 /**
@@ -204,7 +241,7 @@ function evaluate(expression, params) {
  * @param {object} data The dictionary of data available to binding expressions
  * @returns {Array<Element>} The rendered element or elements
  */
-function bind(template, data) {
+async function bind(template, data) {
   // Clone the template
   const clonedTemplate = template.cloneNode(true);
   // If the template is parented, un-parent it
@@ -221,19 +258,19 @@ function bind(template, data) {
   // Check for loop
   if (clonedTemplate.hasAttribute("data-foreach")) {
     const foreachExpression = clonedTemplate.getAttribute("data-foreach");
-    const forEachArray = evaluate(foreachExpression, data);
+    const forEachArray = await evaluate(foreachExpression, data);
     if (!Array.isArray(forEachArray)) {
       throw new Error(`Expression \`${foreachExpression}\` didn't evaluate to an array.`);
     }
-    return forEachArray.flatMap(item => {
+    return Array.from(flatMap(forEachArray, async item => {
       const loopedEl = clonedTemplate.cloneNode(true);
       loopedEl.removeAttribute("data-foreach");
-      return bind(loopedEl, item)
-    })
+      return await bind(loopedEl, item);
+    }));
   }
   // Check for conditional rendering
   if (clonedTemplate.hasAttribute("data-if")) {
-    if (!evaluate(clonedTemplate.getAttribute("data-if"), data)) {
+    if (!await evaluate(clonedTemplate.getAttribute("data-if"), data)) {
       return [];
     }
     //clonedTemplate.removeAttribute("data-if");
@@ -245,21 +282,21 @@ function bind(template, data) {
     el.removeAttribute("id");
   }
   // Bind all attributes and rename them if they're data attributes
-  [...el.attributes].forEach(attr => {
+  await forEach([...el.attributes], async attr => {
     const isDataAttribute = attr.name.substring(0, 5) === "data-";
     const attrName = isDataAttribute ? attr.name.substring(5) : attr.name;
-    el.setAttribute(attrName, interpolate(attr.nodeValue, data));
+    el.setAttribute(attrName, await interpolate(attr.nodeValue, data));
     if (isDataAttribute) {
       el.removeAttribute(attr.name);
     }
   });
   // Bind child elements and text nodes
-  [...el.childNodes].forEach(child => {
+  await forEach([...el.childNodes], async child => {
     if (child.nodeType === Node.TEXT_NODE) {
-      child.nodeValue = interpolate(child.nodeValue, data);
+      child.nodeValue = await interpolate(child.nodeValue, data);
     }
     else if (child.nodeType === Node.ELEMENT_NODE) {
-      el.append(...bind(child, data));
+      el.append(...(await bind(child, data)));
     }
   });
   // Remember that this element was bound to that piece of data, for future updates
@@ -273,8 +310,8 @@ function bind(template, data) {
  * @param {{ usingTemplate: Element, atEndOf: Element, atStartOf: Element, replacing: Element, after: Element, before: Element }} options The template to use and where to render it
  * @returns {Array<Element>} The rendered element or elements
  */
-function render(data, options) {
-  const elements = bind(options.usingTemplate, data);
+async function render(data, options) {
+  const elements = await bind(options.usingTemplate, data);
   if (elements) {
     if (options.atEndOf) {
       const container = options.atEndOf;
@@ -306,13 +343,13 @@ function render(data, options) {
  * Updates the rendered elements for this data.
  * @param {object} data The data to re-render
  */
-function updateRendering(data) {
+async function updateRendering(data) {
   if (data.elements) {
-    data.elements.forEach(el => {
+    await forEach(data.elements, async el => {
       const index = data.elements.indexOf(el);
       if (index === -1) return;
       data.elements.splice(index, 1);
-      render(data, {usingTemplate: el.template, replacing: el.element});
+      await render(data, {usingTemplate: el.template, replacing: el.element});
     });
   }
 }
@@ -377,6 +414,7 @@ async function refreshSubscription(sub) {
   if (sub.url.substring(0, 8) === "https://") {
     //console.log(`Fetching ${sub.title} from ${sub.url}...`);
     const subDoc = await loadDocument(`feed/${sub.url.substring(8)}`, null, sub);
+    sub.pageUrl = subDoc.querySelector('feed link[rel="alternate"]').getAttribute("href");
     const subFeed = [...subDoc.querySelectorAll('feed entry')]
       .map(entry => new Posting({
         id: entry.querySelector("id").textContent,
@@ -400,17 +438,17 @@ async function refreshSubscription(sub) {
         updated: new Date(entry.querySelector("updated").textContent),
         description: entry.querySelector("group description").textContent,
         starRating: parseFloat(entry.querySelector("community starRating").getAttribute("average")),
-        views: parseInt(entry.querySelector("community statistics[views]").getAttribute("views"))
+        views: parseInt(entry.querySelector("community statistics[views]").getAttribute("views")),
+        subscription: sub
       }));
-    subFeed.forEach(posting => {
-      sub.addPosting(posting);
-      metaSubscription.addPosting(posting);
+    await forEach(subFeed, async posting => {
+      await sub.addPosting(posting);
+      await metaSubscription.addPosting(posting);
     });
-    const feedPageUrl = subDoc.querySelector('feed link[rel="alternate"]').getAttribute("href");
-    const iconUrl = await getIconFromFeedPage(feedPageUrl);
+    const iconUrl = await getIconFromFeedPage(sub);
     if (iconUrl) {
       sub.icon = iconUrl;
-      updateRendering(sub);
+      await updateRendering(sub);
     }
   }
   else {
@@ -420,19 +458,24 @@ async function refreshSubscription(sub) {
 
 /**
  * Scrapes the subscription's icon URL from its page
- * @param {string} url The URL from which to scrape the icon URL
+ * @param {Subscription} sub The subscription for which to scrape the icon URL
  */
-async function getIconFromFeedPage(url) {
-  if (url.substring(0, 8) === "https://") {
-    // console.log(`Fetching ${url}...`);
-    const subDoc = await loadDocument(`feed/${url.substring(8)}`, "text/html");
-    const iconUrl = subDoc.querySelector('link[rel="image_src"]').getAttribute("href");
-    // console.log(`Found icon URL ${iconUrl}`);
-    return iconUrl;
-  }
-  else {
-    console.warn(`${sub.title} is not using https. Skipping.`);
-  }
+async function getIconFromFeedPage(sub) {
+  return await localFetch(
+    `subscription:icon:${sub.title}`,
+    async () => {
+      if (sub.pageUrl && sub.pageUrl.substring(0, 8) === "https://") {
+        // console.log(`Fetching ${sub.pageUrl}...`);
+        const subDoc = await loadDocument(`feed/${sub.pageUrl.substring(8)}`, "text/html");
+        const iconUrl = subDoc.querySelector('link[rel="image_src"]').getAttribute("href");
+        // console.log(`Found icon URL ${iconUrl}`);
+        return iconUrl;
+      }
+      else {
+        console.warn(`${sub.title} page isn't known or isn't using https. Skipping.`);
+      }
+    }
+  );
 }
 
 // Application startup
@@ -449,31 +492,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   metaSubscription.postingsElements = [{element: postingsSection, template: postingTemplate}];
 
   // Load subscriptions
-  subscriptions = await localFetch(
-    "subscriptions",
-    async () => [
-      ...(await loadDocument(settings.subscriptions))
-      .firstElementChild
-      .firstElementChild
-      .firstElementChild
-      .children
-    ].map(node => new Subscription({
-      title: node.attributes.title.nodeValue,
-      url: node.attributes.xmlUrl.nodeValue
-    })));
+  subscriptions = [...(await loadDocument(settings.subscriptions))
+    .firstElementChild
+    .firstElementChild
+    .firstElementChild
+    .children
+  ].map(node => new Subscription({
+    title: node.attributes.title.nodeValue,
+    url: node.attributes.xmlUrl.nodeValue
+  }));
+
   subscriptionsSection.innerHTML = "";
-  subscriptions
-    .sort((sub1, sub2) => sub1.title > sub2.title ? 1 : sub1.title < sub2.title ? -1 : 0)
-    .forEach(async sub => {
-      render(sub, {
+  await forEach(subscriptions.sort((sub1, sub2) => sub1.title > sub2.title ? 1 : sub1.title < sub2.title ? -1 : 0),
+    async sub => {
+      await render(sub, {
         atEndOf: subscriptionsSection,
         usingTemplate: subscriptionTemplate
       });
       await refreshSubscription(sub);
-    });
+    }
+  );
 
   // Wire refresh button
-  document.getElementById("refresh-button").addEventListener("click", () => {
-    subscriptions.forEach(sub => refreshSubscription(sub));
+  document.getElementById("refresh-button").addEventListener("click", async () => {
+    await forEach(subscriptions, async sub => await refreshSubscription(sub));
   });
 });
