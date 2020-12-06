@@ -2,7 +2,7 @@
 // (c) 2020 Bertrand Le Roy
 
 // Uncomment during development to start from an empty local cache:
-// clearLocalStore();
+clearLocalStore();
 
 // Settings
 
@@ -65,6 +65,7 @@ class MetaSubscription extends Subscription {
   constructor(options) {
     super(options);
     this.postingsElements = options.postingsElements || [];
+    this.player = options.player || {};
   }
 
   /**
@@ -112,6 +113,21 @@ class MetaSubscription extends Subscription {
         this.postings.push({ posting, elements });
       }
     }
+    for (let el of elements) {
+      el[0].addEventListener("click", async () => {
+        console.log(posting);
+        this.player.element.innerHTML = "";
+        await render(posting, {
+          usingTemplate: this.player.template,
+          atStartOf: this.player.element
+        });
+        document.getElementById("player-close").addEventListener("click", () => {
+          this.player.element.innerHTML = "";
+          this.player.element.style.visibility = "hidden";
+        });
+        this.player.element.style.visibility = "visible";
+      });
+    }
   }
 }
 
@@ -149,8 +165,9 @@ const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
  */
 async function forEach(array, fun)
 {
+  let i = 0;
   for await (let item of array) {
-    await fun(item);
+    await fun(item, i++);
   }
 }
 
@@ -160,13 +177,14 @@ async function forEach(array, fun)
  * @param {AsyncFunction} mapping The async mapping to apply to each array element
  */
 async function* flatMap(array, mapping) {
+  let i = 0;
   for await (let item of array) {
     if (isArray(item)) {
       for await(let nested of flatMap(item)) {
-        yield await mapping(nested);
+        yield await mapping(nested, i++);
       }
     } else {
-      yield await mapping(item);
+      yield await mapping(item, i++);
     }
   }
 }
@@ -417,7 +435,7 @@ async function refreshSubscription(sub) {
     sub.pageUrl = subDoc.querySelector('feed link[rel="alternate"]').getAttribute("href");
     const subFeed = [...subDoc.querySelectorAll('feed entry')]
       .map(entry => new Posting({
-        id: entry.querySelector("id").textContent,
+        id: entry.querySelector("videoId").textContent || entry.querySelector("id").textContent,
         title: entry.querySelector("title").textContent,
         url: entry.querySelector('link[rel="alternate"]').getAttribute("href"),
         media: mapModel(
@@ -487,9 +505,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const subscriptionTemplate = document.getElementById("subscription-template");
   const postingsSection = document.getElementById("postings");
   const postingTemplate = document.getElementById("posting-template");
+  const player = document.getElementById("player");
+  const playerTemplate = document.getElementById("player-template");
 
   // Set-up the meta subscription to render the feed
   metaSubscription.postingsElements = [{element: postingsSection, template: postingTemplate}];
+  metaSubscription.player = { element: player, template: playerTemplate };
 
   // Load subscriptions
   subscriptions = [...(await loadDocument(settings.subscriptions))

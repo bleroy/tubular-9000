@@ -30,8 +30,8 @@
       <div class="container">
         <div class="row" id="subscriptions"></div>
         <div class="row" id="postings"></div>
-        <div class="row" id="player"></div>
       </div>
+      <div id="player" class="overlay player" style="visibility: hidden;"></div>
     </main>
     <div style="visibility: hidden;" id="templates">
       <div id="subscription-template" class="column subscription">
@@ -39,8 +39,18 @@
       </div>
       <div id="posting-template" class="column column-16 posting">
         <img data-src="${thumbnail.url}" alt="${title}" title="${title}" class="thumbnail"/>
-        <div><img data-src="${await getIconFromFeedPage(self.subscription)}" alt="${subscription.title}" title="${subscription.title}" class="subscription-icon"/><h2 class="title" title="${title}">${title}</h2></div>
+        <div>
+          <img data-src="${await getIconFromFeedPage(self.subscription)}" alt="${subscription.title}" title="${subscription.title}" class="subscription-icon"/>
+          <h2 class="title" title="${title}">${title}</h2>
+        </div>
         <div class="date">${new Intl.DateTimeFormat().format(published)}</div>
+      </div>
+      <div id="player-template">
+        <iframe data-src="${`https://www.youtube.com/embed/${id}?autoplay=1&amp;enablejsapi=1&amp;modestbranding=1&amp;playsinline=0&amp;rel=0&amp;origin=${document.documentURI}`}"></iframe>
+        <div data-id="player-controls-drawer">
+          <a data-id="player-open-in-new-window" class="player-control" title="Open in new tab" href="${url}" target="_blank">↗</a>
+          <div data-id="player-close" class="player-control" title="Close player">×</div>
+        </div>
       </div>
     </div>
   </body>
